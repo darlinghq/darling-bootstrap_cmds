@@ -104,9 +104,6 @@ extern string_t InternalHeaderFileName;
 extern string_t DefinesHeaderFileName;
 extern string_t UserFileName;
 extern string_t ServerFileName;
-#ifdef DARLING
-extern string_t XtraceMigFileName;
-#endif
 
 extern void more_global(void);
 

@@ -32,7 +32,7 @@ set(mig_sources
 	migcom.tproj/type.c
 	migcom.tproj/user.c
 	migcom.tproj/utils.c
-	migcom.tproj/xtracemig.c
+	darling/src/xtracemig.c
 	${BISON_MyParser_OUTPUTS}
     ${FLEX_MyScanner_OUTPUTS}
 )
@@ -48,7 +48,7 @@ add_custom_command(
 	COMMAND
 	awk -v "migcc=${CMAKE_C_COMPILER}"
 	-v "migcom=${CMAKE_CURRENT_BINARY_DIR}/migcom"
-	-f "${CMAKE_CURRENT_SOURCE_DIR}/migcom.tproj/mig.awk"
+	-f "${CMAKE_CURRENT_SOURCE_DIR}/darling/src/mig.awk"
 	"${CMAKE_CURRENT_SOURCE_DIR}/migcom.tproj/mig.sh" ">${CMAKE_BINARY_DIR}/build-mig"
 	&& chmod 0755 "${CMAKE_BINARY_DIR}/build-mig"
 	)

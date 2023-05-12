@@ -72,6 +72,7 @@ FileName	({QString}|{AString})
 #include "statement.h"
 #include "global.h"
 #include "parser.h"
+//#include "y.tab.h" // was parser.h
 #include "lexxer.h"
 #include "mig_machine.h"
 

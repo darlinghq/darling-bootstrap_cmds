@@ -921,6 +921,8 @@ static void
 WriteCheckMsgSize(FILE *file, argument_t *arg)
 {
   routine_t *rt = arg->argRoutine;
+  ipc_type_t *it = arg->argType;
+  ipc_type_t *btype = it->itElement;
 
   if (arg->argCount && !arg->argSameCount)
     WriteRequestNDRConvertIntRepOneArgUse(file, arg->argCount);
@@ -928,7 +930,8 @@ WriteCheckMsgSize(FILE *file, argument_t *arg)
     fprintf(file, "#if\t__MigTypeCheck\n");
 
     /* verify that the user-code-provided count does not exceed the maximum count allowed by the type. */
-    fprintf(file, "\t" "if ( In%dP->%s > %d )\n", arg->argCount->argRequestPos, arg->argCount->argMsgField, arg->argType->itNumber);
+    fprintf(file, "\t" "if ( In%dP->%s > %d )\n", arg->argCount->argRequestPos,
+	    arg->argCount->argMsgField, it->itNumber/btype->itNumber);
     fputs("\t\t" "return MIG_BAD_ARGUMENTS;\n", file);
     /* ...end... */
 
@@ -955,7 +958,8 @@ WriteCheckMsgSize(FILE *file, argument_t *arg)
     fprintf(file, "#if\t__MigTypeCheck\n");
 
     /* verify that the user-code-provided count does not exceed the maximum count allowed by the type. */
-    fprintf(file, "\t" "if ( In%dP->%s > %d )\n", arg->argCount->argRequestPos, arg->argCount->argMsgField, arg->argType->itNumber);
+    fprintf(file, "\t" "if ( In%dP->%s > %d )\n", arg->argCount->argRequestPos,
+	  arg->argCount->argMsgField, it->itNumber/btype->itNumber);
     fputs("\t\t" "return MIG_BAD_ARGUMENTS;\n", file);
     /* ...end... */
 
@@ -1994,6 +1998,8 @@ WritePackArgValueNormal(FILE *file, argument_t *arg)
       fprintf(file, "#ifdef USING_MIG_STRNCPY_ZEROFILL\n");
       fprintf(file, "\t}\n");
       fprintf(file, "#endif /* USING_MIG_STRNCPY_ZEROFILL */\n");
+
+      fprintf(file, "\tOutP->%sOffset = 0;\n", arg->argMsgField);
     }
     else if (it->itNoOptArray)
       fprintf(file, "\t(void)memcpy((char *) OutP->%s, (const char *) %s, %d);\n", arg->argMsgField, arg->argVarName, it->itTypeSize);
@@ -2019,6 +2025,11 @@ WritePackArgValueNormal(FILE *file, argument_t *arg)
     WriteCopyType(file, it, TRUE, "OutP->%s", "/* %s */ %s(%s)", arg->argMsgField, it->itOutTrans, arg->argVarName);
   else
     WriteCopyType(file, it, TRUE, "OutP->%s", "/* %s */ %s", arg->argMsgField, arg->argVarName);
+
+  if (arg->argPadName != NULL && it->itPadSize != 0) {
+    fprintf(file, "\t    for (int i = 0; i < %d; i++)\n", it->itPadSize);
+    fprintf(file, "\t\t    OutP->%s[i] = 0;\n", arg->argPadName);
+  }
 }
 
 static void

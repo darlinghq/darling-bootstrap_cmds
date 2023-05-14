@@ -91,9 +91,15 @@ fi
 cppflags="-D__MACH30__"
 
 files=
-arch=`/usr/bin/arch`
+## DARLING
+# arch=`/usr/bin/arch`
+arch=`uname -m`
+## /DARLING
 
-WORKTMP=`/usr/bin/mktemp -d "${TMPDIR:-/tmp}/mig.XXXXXX"`
+## DARLING
+# WORKTMP=`/usr/bin/mktemp -d "${TMPDIR:-/tmp}/mig.XXXXXX"`
+WORKTMP=`mktemp -d "${TMPDIR:-/tmp}/mig.XXXXXX"`
+## /DARLING
 if [ $? -ne 0 ]; then
       echo "Failure creating temporary work directory: ${WORKTMP}"
       echo "Exiting..."

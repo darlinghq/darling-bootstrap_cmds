@@ -283,10 +283,10 @@ static void
 WriteRequestHead(FILE *file, routine_t *rt)
 {
   // FIXME: arg position
-  fprintf(file, "\t\tcallbacks->add_port_arg(In0P->%s, MACH_MSGH_BITS_REMOTE(In0P->Head.msgh_bits));\n", rt->rtRequestPort->argMsgField);
+  fprintf(file, "\t\tcallbacks->add_port_arg(log, In0P->%s, MACH_MSGH_BITS_REMOTE(In0P->Head.msgh_bits));\n", rt->rtRequestPort->argMsgField);
 
   if (akCheck(rt->rtReplyPort->argKind, akbUserArg)) {
-      fprintf(file, "\t\tcallbacks->add_port_arg(In0P->%s, MACH_MSGH_BITS_LOCAL(In0P->Head.msgh_bits));\n", rt->rtReplyPort->argMsgField);
+      fprintf(file, "\t\tcallbacks->add_port_arg(log, In0P->%s, MACH_MSGH_BITS_LOCAL(In0P->Head.msgh_bits));\n", rt->rtReplyPort->argMsgField);
   }
 }
 
@@ -393,7 +393,7 @@ WriteRetCodeArg(FILE *file, register routine_t *rt)
     register argument_t *arg = rt->rtRetCArg;
 
     fprintf(file, "\t\tif (((const mig_reply_error_t *) In0P)->RetCode != KERN_SUCCESS) {\n");
-    fprintf(file, "\t\t\tcallbacks->add_return_code_arg(((const mig_reply_error_t *) In0P)->RetCode);\n");
+    fprintf(file, "\t\t\tcallbacks->add_return_code_arg(log, ((const mig_reply_error_t *) In0P)->RetCode);\n");
     fprintf(file, "\t\t\treturn;\n");
     fprintf(file, "\t\t}\n");
   }
@@ -426,7 +426,7 @@ WriteKPD_port(FILE *file, register argument_t *arg)
     real_it = it;
   }
 
-  fprintf(file, "\t\tcallbacks->add_port_arg(%sname, %sdisposition);\n", string, string);
+  fprintf(file, "\t\tcallbacks->add_port_arg(log, %sname, %sdisposition);\n", string, string);
 
   if (IS_MULTIPLE_KPD(it))
     fprintf(file, "\t\t}\n");
@@ -487,7 +487,7 @@ WriteKPD_ool(FILE *file, register argument_t *arg)
     subindex = "";
   }
 
-  fprintf(file, "\t\tcallbacks->add_ool_mem_arg(%saddress, %ssize);\n", string, string);
+  fprintf(file, "\t\tcallbacks->add_ool_mem_arg(log, %saddress, %ssize);\n", string, string);
 
   if (IS_MULTIPLE_KPD(it)) {
     fprintf(file, "\t\t}\n");
@@ -531,7 +531,7 @@ WriteKPD_oolport(FILE *file, register argument_t *arg)
     subindex = "";
   }
 
-  fprintf(file, "\t\tcallbacks->add_ool_ports_arg(%saddress, %scount, %sdisposition);\n", string, string, string);
+  fprintf(file, "\t\tcallbacks->add_ool_ports_arg(log, %saddress, %scount, %sdisposition);\n", string, string, string);
 
   if (IS_MULTIPLE_KPD(it)) {
     fprintf(file, "\t\t}\n");
@@ -649,25 +649,25 @@ WriteLogCopyType(FILE *file, ipc_type_t *it, char *value, ...)
         ||streql(it->itName, "vm_map_offset_t")
         ||streql(it->itName, "vm_map_address_t"))
 
-        fprintf(file, "\t\tcallbacks->add_ptr_arg((void *) ");
+        fprintf(file, "\t\tcallbacks->add_ptr_arg(log, (void *) ");
       else
-        fprintf(file, "\t\tcallbacks->add_num_arg((unsigned long long) ");
+        fprintf(file, "\t\tcallbacks->add_num_arg(log, (unsigned long long) ");
       vfprintf(file, value, pvar);
       fprintf(file, ");\n");
     }
     else {
-      fprintf(file, "\t\tcallbacks->add_struct_arg(&(");
+      fprintf(file, "\t\tcallbacks->add_struct_arg(log, &(");
       vfprintf(file, value, pvar);
       fprintf(file, "), %lu, %lu);\n", (unsigned long) it->itNumber, (unsigned long) it->itSize);
     }
   }
   else if (it->itString) {
-    fprintf(file, "\t\tcallbacks->add_string_arg(");
+    fprintf(file, "\t\tcallbacks->add_string_arg(log, ");
     vfprintf(file, value, pvar);
     fprintf(file, ");\n");
   }
   else {
-    fprintf(file, "\t\tcallbacks->add_array_arg(");
+    fprintf(file, "\t\tcallbacks->add_array_arg(log, ");
     vfprintf(file, value, pvar);
     fprintf(file, ", %lu, %lu);\n", (unsigned long) it->itNumber, (unsigned long) it->itSize);
   }
@@ -695,10 +695,10 @@ WritePackArgValueNormal(FILE *file, register argument_t *arg)
        * Save the string length (+ 1 for trailing 0)
        * in the argument`s count field.
        */
-      fprintf(file, "\t\tcallbacks->add_string_arg(InP->%s);\n", arg->argMsgField);
+      fprintf(file, "\t\tcallbacks->add_string_arg(log, InP->%s);\n", arg->argMsgField);
     }
     else if (it->itNoOptArray)
-      fprintf(file, "\t\tcallbacks->add_array_arg(InP->%s, %lu, %lu);\n", arg->argMsgField, (unsigned long) it->itNumber, (unsigned long) it->itElement->itSize);
+      fprintf(file, "\t\tcallbacks->add_array_arg(log, InP->%s, %lu, %lu);\n", arg->argMsgField, (unsigned long) it->itNumber, (unsigned long) it->itElement->itSize);
     else {
       
       /*
@@ -717,7 +717,7 @@ WritePackArgValueNormal(FILE *file, register argument_t *arg)
         fprintf(file, "%d * ", btype->itTypeSize);
       fprintf(file, "%s%s);\n", countRef, count->argVarName);
 */
-      fprintf(file, "\t\tcallbacks->add_array_arg(InP->%s, InP->%s, %lu);\n", arg->argMsgField, count->argMsgField, (unsigned long) btype->itSize);
+      fprintf(file, "\t\tcallbacks->add_array_arg(log, InP->%s, InP->%s, %lu);\n", arg->argMsgField, count->argMsgField, (unsigned long) btype->itSize);
     }
   }
   else if (IS_OPTIONAL_NATIVE(it)) {
@@ -725,7 +725,7 @@ WritePackArgValueNormal(FILE *file, register argument_t *arg)
     fprintf(file, "\t");
     WriteLogCopyType(file, it, "InP->%s.__Real__%s", arg->argMsgField);
     fprintf(file, "\t\t} else {\n");
-    fprintf(file, "\t\t\tcallbacks->add_raw_arg(\"(none)\");\n");
+    fprintf(file, "\t\t\tcallbacks->add_raw_arg(log, \"(none)\");\n");
     fprintf(file, "\t\t}\n");
   }
   else if (!streql(arg->argMsgField, "NDR"))
@@ -845,7 +845,7 @@ WriteInitializeCount(FILE *file, register argument_t *arg)
   register ipc_type_t *ptype = arg->argCInOut->argParent->argType;
   register ipc_type_t *btype = ptype->itElement;
 
-  fprintf(file, "\t\tcallbacks->add_num_arg((unsigned long long) InP->%s);\n", arg->argMsgField);
+  fprintf(file, "\t\tcallbacks->add_num_arg(log, (unsigned long long) InP->%s);\n", arg->argMsgField);
 }
 
 /*
@@ -1120,11 +1120,11 @@ WriteExtractKPD_port(FILE *file,  register argument_t *arg)
   real_it = (IS_MULTIPLE_KPD(it)) ? it->itElement : it;
   if (IS_MULTIPLE_KPD(it)) {
     WriteKPD_LogIterator(file, FALSE, FALSE, it->itVarArray, arg, FALSE);
-    fprintf(file, "\t\tcallbacks->add_port_arg(ptr->name, ptr->disposition);\n");
+    fprintf(file, "\t\tcallbacks->add_port_arg(log, ptr->name, ptr->disposition);\n");
     fprintf(file, "\t\t}\n");
   }
   else
-    fprintf(file, "\t\tcallbacks->add_port_arg(Out%dP->%s.name, Out%dP->%s.disposition);\n", arg->argReplyPos, arg->argMsgField, arg->argReplyPos, arg->argMsgField);
+    fprintf(file, "\t\tcallbacks->add_port_arg(log, Out%dP->%s.name, Out%dP->%s.disposition);\n", arg->argReplyPos, arg->argMsgField, arg->argReplyPos, arg->argMsgField);
 }
 
 /*
@@ -1138,11 +1138,11 @@ WriteExtractKPD_ool(FILE *file, register argument_t *arg)
 
   if (IS_MULTIPLE_KPD(it)) {
     WriteKPD_LogIterator(file, FALSE, FALSE, it->itVarArray, arg, FALSE);
-    fprintf(file, "\t\t\tcallbacks->add_ool_mem_arg(ptr->address, ptr->size);\n");
+    fprintf(file, "\t\t\tcallbacks->add_ool_mem_arg(log, ptr->address, ptr->size);\n");
     fprintf(file, "\t\t}\n");
   }
   else
-    fprintf(file, "\t\tcallbacks->add_ool_mem_arg(Out%dP->%s.address, Out%dP->%s.size);\n", arg->argReplyPos, arg->argMsgField, arg->argReplyPos, arg->argMsgField);
+    fprintf(file, "\t\tcallbacks->add_ool_mem_arg(log, Out%dP->%s.address, Out%dP->%s.size);\n", arg->argReplyPos, arg->argMsgField, arg->argReplyPos, arg->argMsgField);
   /*
    *  In case of variable sized arrays,
    *  the count field will be retrieved from the untyped
@@ -1162,11 +1162,11 @@ WriteExtractKPD_oolport(FILE *file, register argument_t *arg)
 
   if (IS_MULTIPLE_KPD(it)) {
     WriteKPD_LogIterator(file, FALSE, FALSE, it->itVarArray, arg, FALSE);
-    fprintf(file, "\t\t\tcallbacks->add_ool_ports_arg(ptr->address, ptr->count, ptr->disposition);\n");
+    fprintf(file, "\t\t\tcallbacks->add_ool_ports_arg(log, ptr->address, ptr->count, ptr->disposition);\n");
     fprintf(file, "\t\t}\n");
   }
   else
-    fprintf(file, "\t\tcallbacks->add_ool_ports_arg(Out%dP->%s.address, Out%dP->%s.count, Out%dP->%s.disposition);\n", arg->argReplyPos, arg->argMsgField, arg->argReplyPos, arg->argMsgField, arg->argReplyPos, arg->argMsgField);
+    fprintf(file, "\t\tcallbacks->add_ool_ports_arg(log, Out%dP->%s.address, Out%dP->%s.count, Out%dP->%s.disposition);\n", arg->argReplyPos, arg->argMsgField, arg->argReplyPos, arg->argMsgField, arg->argReplyPos, arg->argMsgField);
   /*
    *  In case of variable sized arrays,
    *  the count field will be retrieved from the untyped
@@ -1194,10 +1194,10 @@ WriteExtractArgValueNormal(FILE *file, register argument_t *arg)
   
   if (IS_VARIABLE_SIZED_UNTYPED(argType) || argType->itNoOptArray) {
     if (argType->itString) {
-      fprintf(file, "\t\tcallbacks->add_string_arg(%s->%s);\n", who, arg->argMsgField);
+      fprintf(file, "\t\tcallbacks->add_string_arg(log, %s->%s);\n", who, arg->argMsgField);
     }
     else if (argType->itNoOptArray)
-      fprintf(file, "\t\tcallbacks->add_array_arg(%s->%s, %lu, %lu);\n", who, arg->argMsgField, (unsigned long) argType->itNumber, (unsigned long) argType->itElement->itSize);
+      fprintf(file, "\t\tcallbacks->add_array_arg(log, %s->%s, %lu, %lu);\n", who, arg->argMsgField, (unsigned long) argType->itNumber, (unsigned long) argType->itElement->itSize);
     else {
       
       /*
@@ -1216,7 +1216,7 @@ WriteExtractArgValueNormal(FILE *file, register argument_t *arg)
        * fill user`s area as much as possible.  Return the correct
        * number of elements.
        */
-      fprintf(file, "\t\tcallbacks->add_array_arg(Out%dP->%s, Out%dP->%s, %lu);\n", arg->argReplyPos, arg->argMsgField, count->argReplyPos, count->argMsgField, (unsigned long) btype->itSize);
+      fprintf(file, "\t\tcallbacks->add_array_arg(log, Out%dP->%s, Out%dP->%s, %lu);\n", arg->argReplyPos, arg->argMsgField, count->argReplyPos, count->argMsgField, (unsigned long) btype->itSize);
     }
   }
   else
@@ -1918,7 +1918,7 @@ WriteCheckReplyCall(FILE *file, routine_t *rt)
     fprintf(file, ", (const __Reply__%s_t **)&Out%dP", rt->rtName, i);
   fprintf(file, ");\n");
   fprintf(file, "\t\tif (check_result != MACH_MSG_SUCCESS) {\n");
-  fprintf(file, "\t\t\tcallbacks->set_return_code(check_result);\n");
+  fprintf(file, "\t\t\tcallbacks->set_return_code(log, check_result);\n");
   fprintf(file, "\t\t\treturn;\n");
   fprintf(file, "\t\t}\n");
   fprintf(file, "#endif\t\t/* defined(__MIG_check__Reply__%s_t__defined) */\n", rt->rtName);
@@ -1951,6 +1951,7 @@ WriteRoutine(FILE *file, register routine_t *rt)
 {
   /* write the stub's declaration */
   WriteStubDecl(file, rt);
+  fprintf(file, "\txtrace_string_t log = callbacks->xtrace_string_construct();\n");
   
   /* typedef of structure for Request and Reply messages */
   WriteStructDecl(file, rt->rtArgs, WriteFieldDecl, akbRequest, "Request", rt->rtSimpleRequest, FALSE, FALSE, FALSE);
@@ -2000,6 +2001,10 @@ WriteRoutine(FILE *file, register routine_t *rt)
     fprintf(file, "\t}\n");
   }
 
+  fprintf(file, "\n");
+  fprintf(file, "\tcallbacks->xtrace_log(\"%%s\\n\", callbacks->xtrace_string_c_str(log));\n");
+  fprintf(file, "\tcallbacks->xtrace_string_clear(log);\n");
+  fprintf(file, "\tcallbacks->xtrace_string_destruct(log);\n");
   fprintf(file, "\treturn;\n");
   fprintf(file, "}\n");
 }

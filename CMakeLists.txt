@@ -15,7 +15,7 @@ endif (TARGET_ARM64)
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99")
 add_definitions(-Du_int=unsigned -D__int64_t=int64_t -D__int32_t=int32_t -D__darwin_natural_t=unsigned -D__uint32_t=uint32_t -D__uint16_t=uint16_t -D__uint64_t=uint64_t -D_BSD_I386__TYPES_H_)
-add_definitions('-DMIG_VERSION="1.0"')
+add_definitions('-DMIG_VERSION="1.0"' -DDARLING_LINUX_MIGCOM)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/darling/include)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/darling/include/mach)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/migcom.tproj)

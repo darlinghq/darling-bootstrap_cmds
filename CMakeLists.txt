@@ -75,7 +75,7 @@ if (CMAKE_CROSSCOMPILING)
 	add_custom_command(
 		OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/bin/migcom"
 		COMMAND ${HOST_C_COMPILER_CMD} -std=c99 -Wno-implicit-function-declaration -Wno-error=implicit-function-declaration
-			"-D__private_extern__=" -D__LITTLE_ENDIAN__=1
+			-DDARLING "-D__private_extern__=" -D__LITTLE_ENDIAN__=1
 			-Du_int=unsigned -D__int64_t=int64_t -D__int32_t=int32_t -D__darwin_natural_t=unsigned
 			-D__uint32_t=uint32_t -D__uint16_t=uint16_t -D__uint64_t=uint64_t ${MIG_HOST_ARCH_DEFS}
 			"-DMIG_VERSION=\\\"1.0\\\""

@@ -53,7 +53,75 @@ set(mig_sources
     ${FLEX_MyScanner_OUTPUTS}
 )
 
-add_executable(migcom ${mig_sources})
+if (CMAKE_CROSSCOMPILING)
+	if (DEFINED ENV{CC_FOR_BUILD} AND NOT "$ENV{CC_FOR_BUILD}" STREQUAL "")
+		set(HOST_C_COMPILER "$ENV{CC_FOR_BUILD}")
+	else()
+		find_program(HOST_C_COMPILER NAMES clang gcc cc PATHS /usr/bin NO_DEFAULT_PATH)
+		if (NOT HOST_C_COMPILER)
+			find_program(HOST_C_COMPILER NAMES clang gcc cc)
+		endif()
+	endif()
+	separate_arguments(HOST_C_COMPILER_CMD NATIVE_COMMAND "${HOST_C_COMPILER}")
+
+	if (CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "aarch64|arm64")
+		set(MIG_HOST_ARCH_DEFS -D_BSD_ARM__TYPES_H_ -D__arm64__=1)
+	else()
+		set(MIG_HOST_ARCH_DEFS -D_BSD_I386__TYPES_H_)
+	endif()
+
+	file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/bin")
+
+	add_custom_command(
+		OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/bin/migcom"
+		COMMAND ${HOST_C_COMPILER_CMD} -std=c99 -Wno-implicit-function-declaration -Wno-error=implicit-function-declaration
+			"-D__private_extern__=" -D__LITTLE_ENDIAN__=1
+			-Du_int=unsigned -D__int64_t=int64_t -D__int32_t=int32_t -D__darwin_natural_t=unsigned
+			-D__uint32_t=uint32_t -D__uint16_t=uint16_t -D__uint64_t=uint64_t ${MIG_HOST_ARCH_DEFS}
+			"-DMIG_VERSION=\\\"1.0\\\""
+			-I "${CMAKE_CURRENT_SOURCE_DIR}/darling/include"
+			-I "${CMAKE_CURRENT_SOURCE_DIR}/darling/include/mach"
+			-I "${CMAKE_CURRENT_SOURCE_DIR}/migcom.tproj"
+			-I "${CMAKE_CURRENT_BINARY_DIR}"
+			-I "${CMAKE_SOURCE_DIR}/basic-headers"
+			"${CMAKE_CURRENT_SOURCE_DIR}/migcom.tproj/error.c"
+			"${CMAKE_CURRENT_SOURCE_DIR}/migcom.tproj/global.c"
+			"${CMAKE_CURRENT_SOURCE_DIR}/migcom.tproj/header.c"
+			"${CMAKE_CURRENT_SOURCE_DIR}/migcom.tproj/mig.c"
+			"${CMAKE_CURRENT_SOURCE_DIR}/migcom.tproj/routine.c"
+			"${CMAKE_CURRENT_SOURCE_DIR}/migcom.tproj/server.c"
+			"${CMAKE_CURRENT_SOURCE_DIR}/migcom.tproj/statement.c"
+			"${CMAKE_CURRENT_SOURCE_DIR}/migcom.tproj/string.c"
+			"${CMAKE_CURRENT_SOURCE_DIR}/migcom.tproj/type.c"
+			"${CMAKE_CURRENT_SOURCE_DIR}/migcom.tproj/user.c"
+			"${CMAKE_CURRENT_SOURCE_DIR}/migcom.tproj/utils.c"
+			"${CMAKE_CURRENT_SOURCE_DIR}/darling/src/xtracemig.c"
+			"${CMAKE_CURRENT_BINARY_DIR}/parser.c"
+			"${CMAKE_CURRENT_BINARY_DIR}/lexer.c"
+			-o "${CMAKE_CURRENT_BINARY_DIR}/bin/migcom"
+		DEPENDS
+			${BISON_MyParser_OUTPUTS}
+			${FLEX_MyScanner_OUTPUTS}
+			"${CMAKE_CURRENT_SOURCE_DIR}/migcom.tproj/error.c"
+			"${CMAKE_CURRENT_SOURCE_DIR}/migcom.tproj/global.c"
+			"${CMAKE_CURRENT_SOURCE_DIR}/migcom.tproj/header.c"
+			"${CMAKE_CURRENT_SOURCE_DIR}/migcom.tproj/mig.c"
+			"${CMAKE_CURRENT_SOURCE_DIR}/migcom.tproj/routine.c"
+			"${CMAKE_CURRENT_SOURCE_DIR}/migcom.tproj/server.c"
+			"${CMAKE_CURRENT_SOURCE_DIR}/migcom.tproj/statement.c"
+			"${CMAKE_CURRENT_SOURCE_DIR}/migcom.tproj/string.c"
+			"${CMAKE_CURRENT_SOURCE_DIR}/migcom.tproj/type.c"
+			"${CMAKE_CURRENT_SOURCE_DIR}/migcom.tproj/user.c"
+			"${CMAKE_CURRENT_SOURCE_DIR}/migcom.tproj/utils.c"
+			"${CMAKE_CURRENT_SOURCE_DIR}/darling/src/xtracemig.c"
+		COMMENT "Compiling host migcom for code generation"
+	)
+	add_custom_target(migcom DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/bin/migcom")
+	set(MIGCOM_PATH "${CMAKE_CURRENT_BINARY_DIR}/bin/migcom")
+else()
+	add_executable(migcom ${mig_sources})
+	set(MIGCOM_PATH "${CMAKE_CURRENT_BINARY_DIR}/migcom")
+endif()
 
 add_custom_command(
 	OUTPUT "${CMAKE_BINARY_DIR}/build-mig"
@@ -74,7 +142,7 @@ add_custom_command(
 	COMMAND ${CMAKE_COMMAND} -E env
 		awk
 		-v "migcc=${CMAKE_C_COMPILER}"
-		-v "migcom=${CMAKE_CURRENT_BINARY_DIR}/migcom"
+		-v "migcom=${MIGCOM_PATH}"
 		-f "${CMAKE_CURRENT_SOURCE_DIR}/darling/src/mig.awk"
 		"${CMAKE_CURRENT_SOURCE_DIR}/migcom.tproj/mig.sh"
 		> "${CMAKE_BINARY_DIR}/build-mig"

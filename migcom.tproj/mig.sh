@@ -169,7 +169,9 @@ do
     then
       iSysRootParm=( "-isysroot" "${sdkRoot}" )
     fi
-    if [ ! -r "${file}" ]
+    # Android SELinux: faccessat() (used by bash [ -r ]) can report
+    # EACCES even when open() succeeds.  Use `cat` to probe readability.
+    if ! cat "${file}" > /dev/null 2>&1
     then
       echo "error: cannot read file ${file}"
       rm -rf ${WORKTMP}

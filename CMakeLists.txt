@@ -1,6 +1,6 @@
-project(mig)
-
 cmake_minimum_required(VERSION 3.13)
+
+project(mig)
 
 find_package(BISON)
 find_package(FLEX)
@@ -57,3 +57,31 @@ add_custom_target(migexe DEPENDS "${CMAKE_BINARY_DIR}/build-mig")
 add_dependencies(migexe migcom)
 
 
+
+# Standalone build (e.g. for distribution packages); Darling itself uses build-mig from its build tree.
+# Installed as darling-mig so it does not clash with GNU MIG's mig and migcom.
+if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+	include(GNUInstallDirs)
+	set(MIGCC "clang" CACHE STRING "Default C compiler the installed darling-mig uses for preprocessing")
+	set(DARLING_BASIC_HEADERS "" CACHE PATH "Darling's basic-headers directory (provides Availability.h)")
+	if (NOT DARLING_BASIC_HEADERS)
+		message(FATAL_ERROR "Set DARLING_BASIC_HEADERS to Darling's basic-headers directory")
+	endif()
+	target_include_directories(migcom PRIVATE "${DARLING_BASIC_HEADERS}")
+	# enables Darling's extensions (e.g. -xtracemig); Darling defines this globally
+	target_compile_definitions(migcom PRIVATE DARLING)
+
+	add_custom_command(
+		OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/darling-mig"
+		DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/migcom.tproj/mig.sh" "${CMAKE_CURRENT_SOURCE_DIR}/darling/src/mig.awk"
+		COMMAND
+		awk -v "migcc=${MIGCC}"
+		-v "migcom=${CMAKE_INSTALL_FULL_LIBEXECDIR}/darling-mig/migcom"
+		-f "${CMAKE_CURRENT_SOURCE_DIR}/darling/src/mig.awk"
+		"${CMAKE_CURRENT_SOURCE_DIR}/migcom.tproj/mig.sh" ">${CMAKE_CURRENT_BINARY_DIR}/darling-mig"
+		)
+	add_custom_target(darling-mig-script ALL DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/darling-mig")
+
+	install(TARGETS migcom RUNTIME DESTINATION "${CMAKE_INSTALL_LIBEXECDIR}/darling-mig")
+	install(PROGRAMS "${CMAKE_CURRENT_BINARY_DIR}/darling-mig" DESTINATION "${CMAKE_INSTALL_BINDIR}")
+endif()

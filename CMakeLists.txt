@@ -10,23 +10,29 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99")
 # to match BSD's int64_t typedef. On macOS host, __int64_t is already an
 # internal Apple macro that expands to a real type — overriding it makes
 # Apple's <sys/_types.h> recurse and fail to parse.
+#
+# migcom runs on the build host, so the architecture is the host's; when
+# cross-compiling it is built with a separate host compiler (see below), so
+# the definitions and include directories are kept in variables for both.
+set(mig_definitions)
 if (NOT DARLING_HOST_MACOS)
-	add_definitions(-Du_int=unsigned -D__int64_t=int64_t -D__int32_t=int32_t -D__darwin_natural_t=unsigned -D__uint32_t=uint32_t -D__uint16_t=uint16_t -D__uint64_t=uint64_t -D_BSD_I386__TYPES_H_)
-	if(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
-		add_definitions(-D_BSD_ARM__TYPES_H_ -D__arm64__)
+	list(APPEND mig_definitions -Du_int=unsigned -D__int64_t=int64_t -D__int32_t=int32_t -D__darwin_natural_t=unsigned -D__uint32_t=uint32_t -D__uint16_t=uint16_t -D__uint64_t=uint64_t -D_BSD_I386__TYPES_H_)
+	if(CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64)$")
+		list(APPEND mig_definitions -D_BSD_ARM__TYPES_H_ -D__arm64__)
 	endif()
 endif()
+add_definitions(${mig_definitions})
 add_definitions('-DMIG_VERSION="1.0"')
 # darling/include/sys/_types.h and arm/_types.h shadow Apple's real headers.
 # On macOS host let Apple's win — keep the mach/ subdirectory for the
 # bundled mach headers (those don't conflict with anything system-side).
 if (DARLING_HOST_MACOS)
-	include_directories(${CMAKE_CURRENT_SOURCE_DIR}/darling/include/mach)
+	set(mig_include_dirs ${CMAKE_CURRENT_SOURCE_DIR}/darling/include/mach)
 else()
-	include_directories(${CMAKE_CURRENT_SOURCE_DIR}/darling/include)
-	include_directories(${CMAKE_CURRENT_SOURCE_DIR}/darling/include/mach)
+	set(mig_include_dirs ${CMAKE_CURRENT_SOURCE_DIR}/darling/include ${CMAKE_CURRENT_SOURCE_DIR}/darling/include/mach)
 endif()
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/migcom.tproj)
+list(APPEND mig_include_dirs ${CMAKE_CURRENT_SOURCE_DIR}/migcom.tproj)
+include_directories(${mig_include_dirs})
 
 BISON_TARGET(MyParser migcom.tproj/parser.y ${CMAKE_CURRENT_BINARY_DIR}/parser.c)
 FLEX_TARGET(MyScanner migcom.tproj/lexxer.l ${CMAKE_CURRENT_BINARY_DIR}/lexer.c)
@@ -54,67 +60,49 @@ set(mig_sources
 )
 
 if (CMAKE_CROSSCOMPILING)
+	# CMAKE_C_COMPILER builds for the target, but migcom has to run here.
+	# Use CC_FOR_BUILD if set, otherwise the host's cc.
 	if (DEFINED ENV{CC_FOR_BUILD} AND NOT "$ENV{CC_FOR_BUILD}" STREQUAL "")
 		set(HOST_C_COMPILER "$ENV{CC_FOR_BUILD}")
 	else()
-		find_program(HOST_C_COMPILER NAMES clang gcc cc PATHS /usr/bin NO_DEFAULT_PATH)
+		find_program(HOST_C_COMPILER NAMES cc clang gcc)
 		if (NOT HOST_C_COMPILER)
-			find_program(HOST_C_COMPILER NAMES clang gcc cc)
+			message(FATAL_ERROR "No host C compiler found to build migcom; set CC_FOR_BUILD")
 		endif()
 	endif()
 	separate_arguments(HOST_C_COMPILER_CMD NATIVE_COMMAND "${HOST_C_COMPILER}")
 
-	if (CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "aarch64|arm64")
-		set(MIG_HOST_ARCH_DEFS -D_BSD_ARM__TYPES_H_ -D__arm64__=1)
-	else()
-		set(MIG_HOST_ARCH_DEFS -D_BSD_I386__TYPES_H_)
-	endif()
+	set(host_mig_sources)
+	foreach(src IN LISTS mig_sources)
+		get_filename_component(src "${src}" ABSOLUTE BASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
+		list(APPEND host_mig_sources "${src}")
+	endforeach()
+	# the bison outputs include parser.h
+	set(host_mig_c_sources ${host_mig_sources})
+	list(FILTER host_mig_c_sources INCLUDE REGEX "\\.c$")
+	# the same include directories as a native build, including the ones
+	# the parent directories set up (basic-headers, src/include)
+	get_directory_property(mig_all_include_dirs INCLUDE_DIRECTORIES)
+	set(host_mig_includes)
+	foreach(dir IN LISTS mig_all_include_dirs)
+		list(APPEND host_mig_includes -I "${dir}")
+	endforeach()
 
 	file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/bin")
 
 	add_custom_command(
 		OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/bin/migcom"
-		COMMAND ${HOST_C_COMPILER_CMD} -std=c99 -Wno-implicit-function-declaration -Wno-error=implicit-function-declaration
+		COMMAND ${HOST_C_COMPILER_CMD} -std=c99 -Wno-dangling-else -Wno-implicit-function-declaration
 			-DDARLING "-D__private_extern__=" -D__LITTLE_ENDIAN__=1
-			-Du_int=unsigned -D__int64_t=int64_t -D__int32_t=int32_t -D__darwin_natural_t=unsigned
-			-D__uint32_t=uint32_t -D__uint16_t=uint16_t -D__uint64_t=uint64_t ${MIG_HOST_ARCH_DEFS}
-			"-DMIG_VERSION=\\\"1.0\\\""
-			-I "${CMAKE_CURRENT_SOURCE_DIR}/darling/include"
-			-I "${CMAKE_CURRENT_SOURCE_DIR}/darling/include/mach"
-			-I "${CMAKE_CURRENT_SOURCE_DIR}/migcom.tproj"
+			${mig_definitions}
+			"-DMIG_VERSION=\"1.0\""
+			${host_mig_includes}
 			-I "${CMAKE_CURRENT_BINARY_DIR}"
-			-I "${CMAKE_SOURCE_DIR}/basic-headers"
-			"${CMAKE_CURRENT_SOURCE_DIR}/migcom.tproj/error.c"
-			"${CMAKE_CURRENT_SOURCE_DIR}/migcom.tproj/global.c"
-			"${CMAKE_CURRENT_SOURCE_DIR}/migcom.tproj/header.c"
-			"${CMAKE_CURRENT_SOURCE_DIR}/migcom.tproj/mig.c"
-			"${CMAKE_CURRENT_SOURCE_DIR}/migcom.tproj/routine.c"
-			"${CMAKE_CURRENT_SOURCE_DIR}/migcom.tproj/server.c"
-			"${CMAKE_CURRENT_SOURCE_DIR}/migcom.tproj/statement.c"
-			"${CMAKE_CURRENT_SOURCE_DIR}/migcom.tproj/string.c"
-			"${CMAKE_CURRENT_SOURCE_DIR}/migcom.tproj/type.c"
-			"${CMAKE_CURRENT_SOURCE_DIR}/migcom.tproj/user.c"
-			"${CMAKE_CURRENT_SOURCE_DIR}/migcom.tproj/utils.c"
-			"${CMAKE_CURRENT_SOURCE_DIR}/darling/src/xtracemig.c"
-			"${CMAKE_CURRENT_BINARY_DIR}/parser.c"
-			"${CMAKE_CURRENT_BINARY_DIR}/lexer.c"
+			${host_mig_c_sources}
 			-o "${CMAKE_CURRENT_BINARY_DIR}/bin/migcom"
-		DEPENDS
-			${BISON_MyParser_OUTPUTS}
-			${FLEX_MyScanner_OUTPUTS}
-			"${CMAKE_CURRENT_SOURCE_DIR}/migcom.tproj/error.c"
-			"${CMAKE_CURRENT_SOURCE_DIR}/migcom.tproj/global.c"
-			"${CMAKE_CURRENT_SOURCE_DIR}/migcom.tproj/header.c"
-			"${CMAKE_CURRENT_SOURCE_DIR}/migcom.tproj/mig.c"
-			"${CMAKE_CURRENT_SOURCE_DIR}/migcom.tproj/routine.c"
-			"${CMAKE_CURRENT_SOURCE_DIR}/migcom.tproj/server.c"
-			"${CMAKE_CURRENT_SOURCE_DIR}/migcom.tproj/statement.c"
-			"${CMAKE_CURRENT_SOURCE_DIR}/migcom.tproj/string.c"
-			"${CMAKE_CURRENT_SOURCE_DIR}/migcom.tproj/type.c"
-			"${CMAKE_CURRENT_SOURCE_DIR}/migcom.tproj/user.c"
-			"${CMAKE_CURRENT_SOURCE_DIR}/migcom.tproj/utils.c"
-			"${CMAKE_CURRENT_SOURCE_DIR}/darling/src/xtracemig.c"
+		DEPENDS ${host_mig_sources}
 		COMMENT "Compiling host migcom for code generation"
+		VERBATIM
 	)
 	add_custom_target(migcom DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/bin/migcom")
 	set(MIGCOM_PATH "${CMAKE_CURRENT_BINARY_DIR}/bin/migcom")

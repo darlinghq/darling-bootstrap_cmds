@@ -59,7 +59,11 @@ set(mig_sources
     ${FLEX_MyScanner_OUTPUTS}
 )
 
-if (CMAKE_CROSSCOMPILING)
+# Darling configures every build with CMAKE_CROSSCOMPILING set (it builds
+# Mach-O code on a Linux host), so that variable cannot tell whether migcom
+# itself needs a separate host build. The top-level build sets
+# DARLING_CROSS_BUILD when the target machine differs from the build machine.
+if (DARLING_CROSS_BUILD)
 	# CMAKE_C_COMPILER builds for the target, but migcom has to run here.
 	# Use CC_FOR_BUILD if set, otherwise the host's cc.
 	if (DEFINED ENV{CC_FOR_BUILD} AND NOT "$ENV{CC_FOR_BUILD}" STREQUAL "")

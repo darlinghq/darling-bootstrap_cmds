@@ -65,11 +65,12 @@ set(mig_sources
 # DARLING_CROSS_BUILD when the target machine differs from the build machine.
 if (DARLING_CROSS_BUILD)
 	# CMAKE_C_COMPILER builds for the target, but migcom has to run here.
-	# Use CC_FOR_BUILD if set, otherwise the host's cc.
+	# Use CC_FOR_BUILD if set, otherwise the host clang (the include directories
+	# inherited from the top-level build point at its resource headers).
 	if (DEFINED ENV{CC_FOR_BUILD} AND NOT "$ENV{CC_FOR_BUILD}" STREQUAL "")
 		set(HOST_C_COMPILER "$ENV{CC_FOR_BUILD}")
 	else()
-		find_program(HOST_C_COMPILER NAMES cc clang gcc)
+		find_program(HOST_C_COMPILER NAMES clang cc)
 		if (NOT HOST_C_COMPILER)
 			message(FATAL_ERROR "No host C compiler found to build migcom; set CC_FOR_BUILD")
 		endif()

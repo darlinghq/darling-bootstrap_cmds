@@ -169,7 +169,12 @@ do
     then
       iSysRootParm=( "-isysroot" "${sdkRoot}" )
     fi
-    if [ ! -r "${file}" ]
+    # `[ -r ]` uses faccessat(), which can report EACCES under Android's
+    # SELinux policy even though open() succeeds.  When the access check
+    # says no, fall back to trying to open a regular file (open() does not
+    # block on a regular file and reads nothing).  Directories, special files
+    # and missing files are still rejected.
+    if ! [ -r "${file}" ] && ! { [ -f "${file}" ] && { : < "${file}"; } 2>/dev/null; }
     then
       echo "error: cannot read file ${file}"
       rm -rf ${WORKTMP}
